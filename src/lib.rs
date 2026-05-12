@@ -34,7 +34,30 @@ pub fn swap_output(
     reserve_out: u64,
     amount_in:   u64,
 ) -> Result<u64, CurveError> {
-    todo!()
+    if amount_in == 0 {
+        return Err(CurveError::ZeroInput);
+    }
+
+    if reserve_in == 0 || reserve_out == 0 {
+        return Err(CurveError::EmptyPool);
+    }
+
+    let reserve_in = reserve_in as u128;
+    let reserve_out = reserve_out as u128;
+    let amount_in = amount_in as u128;
+
+    let numerator = amount_in
+        .checked_mul(reserve_out)
+        .ok_or(CurveError::Overflow)?;
+
+    let denominator = reserve_in
+        .checked_add(amount_in)
+        .ok_or(CurveError::Overflow)?;
+
+    let amount_out = numerator / denominator;
+
+    u64::try_from(amount_out).map_err(|_| CurveError::Overflow)
+    
 }
 
 /// Same as `swap_output` but takes a fee (in basis points) from the input
@@ -78,4 +101,67 @@ pub fn withdraw_amounts(
 /// Returns the largest `n` such that `n * n <= value`.
 pub fn integer_sqrt(value: u128) -> u128 {
     todo!()
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn swap_basic_no_fee() {
+        assert_eq!(swap_output(100, 100, 50), Ok(33));
+    }
+
+    #[test]
+    fn swap_zero_input_error() {
+        assert_eq!(swap_output(100, 100, 0), Err(CurveError::ZeroInput));
+    }
+
+    #[test]
+    fn swap_empty_pool_errors() {
+        assert_eq!(swap_output(0, 100, 50), Err(CurveError::EmptyPool));
+        assert_eq!(swap_output(100, 0, 50), Err(CurveError::EmptyPool));
+    }
+
+    #[test]
+    fn swap_big_numbers_need_u128() {
+        assert_eq!(swap_output(10_000_000_000, 10_000_000_000, 10_000_000_000), Ok(5_000_000_000));
+    }
+
+    #[test]
+    fn swap_at_u64_max_does_not_panic() {
+        let result = swap_output(u64::MAX, u64::MAX, u64::MAX);
+        assert!(result.is_ok());
+        assert!(result.unwrap() < u64::MAX);
+    }
+
+    #[test]
+    fn swap_preserves_invariant() {
+        let reserve_x: u64 = 1000;
+        let reserve_y: u64 = 1000;
+        let amount_in: u64 = 250;
+
+        let amount_out = swap_output(reserve_x, reserve_y, amount_in).unwrap();
+
+        let new_x = reserve_x + amount_in;
+        let new_y = reserve_y - amount_out;
+
+        let old_k = (reserve_x as u128) * (reserve_y as u128);
+        let new_k = (new_x as u128) * (new_y as u128);
+
+        assert!(new_k >= old_k);
+    }
+
+    #[test]
+    fn swap_tiny_input() {
+        assert_eq!(swap_output(1_000_000, 1_000_000, 1), Ok(0));
+    }
+
+    #[test]
+    fn swap_drains_almost_all() {
+        let amount_out = swap_output(1000, 1000, 1_000_000).unwrap();
+        assert_eq!(amount_out, 999);
+        assert!(amount_out < 1000);
+    }
 }
