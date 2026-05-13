@@ -68,7 +68,44 @@ pub fn swap_output_with_fee(
     amount_in:   u64,
     fee_bps:     u16,
 ) -> Result<u64, CurveError> {
-    todo!()
+    if amount_in == 0 {
+        return Err(CurveError::ZeroInput);
+    }
+
+    if reserve_in == 0 || reserve_out == 0 {
+        return Err(CurveError::EmptyPool);
+    }
+
+    if fee_bps < 10_000 {
+        return Err(CurveError::InvalidFee);
+    }
+
+    let reserve_in = reserve_in as u128;
+    let reserve_out = reserve_out as u128;
+    let amount_in = amount_in as u128;
+    let fee_bps = fee_bps as u128;
+
+    let amount_in_with_fee = amount_in
+        .checked_mul(10_000 - fee_bps)
+        .ok_or(CurveError::Overflow)?;
+
+    let numerator = amount_in_with_fee
+        .checked_mul(reserve_out)
+        .ok_or(CurveError::Overflow)?;
+
+    let reserve_in_scaled = reserve_in
+        .checked_mul(10_000)
+        .ok_or(CurveError::Overflow)?;
+
+    let denominator = reserve_in_scaled
+        .checked_add(amount_in_with_fee)
+        .ok_or(CurveError::Overflow)?;
+
+    let amount_out = numerator / denominator;
+
+    u64::try_from(amount_out).map_err(|_| CurveError::Overflow)
+    
+    
 }
 
 /// Compute how much of each input token to actually pull, and how many LP
