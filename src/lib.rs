@@ -377,6 +377,12 @@ mod tests {
     }
 
     #[test]
+    fn deposit_y_constrained() {
+         let r = deposit_amounts(1000, 2000, 1000, 100, 500).unwrap();
+         assert_eq!(r, DepositResult { amount_x_used: 100, amount_y_used: 200, lp_minted: 100 });
+    }
+     
+    #[test]
     fn deposit_zero_input_errors() {
         assert_eq!(deposit_amounts(1000, 1000, 1000, 0, 100), Err(CurveError::ZeroInput));
         assert_eq!(deposit_amounts(1000, 1000, 1000, 100, 0), Err(CurveError::ZeroInput));
