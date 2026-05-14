@@ -157,6 +157,8 @@ pub fn integer_sqrt(value: u128) -> u128 {
 
 #[cfg(test)]
 mod tests {
+    use core::u128;
+
     use super::*;
 
     #[test]
@@ -251,5 +253,46 @@ mod tests {
         let new_k = (new_x as u128) * (new_y as u128);
 
         assert!(new_k > old_k);
+    }
+
+    #[test]
+    fn sqrt_zero() {
+        assert_eq!(integer_sqrt(0), 0);
+    }
+
+    #[test]
+    fn sqrt_small() {
+        assert_eq!(integer_sqrt(1), 1);
+        assert_eq!(integer_sqrt(2), 1);
+        assert_eq!(integer_sqrt(3), 1);
+        assert_eq!(integer_sqrt(4), 2);
+    }
+
+    #[test]
+    fn sqrt_perfect_sqaures() {
+        assert_eq!(integer_sqrt(9), 3);
+        assert_eq!(integer_sqrt(16), 4);
+        assert_eq!(integer_sqrt(100), 10);
+        assert_eq!(integer_sqrt(1_000_000), 1000);
+    }
+
+    #[test]
+    fn sqrt_big() {
+        assert_eq!(integer_sqrt(1_000_000_000_000_000_000), 1_000_000_000);
+    }
+
+    #[test]
+    fn sqrt_property() {
+        for value in [50u128, 99, 1000, 1_000_001, 12_345_678] {
+            let r = integer_sqrt(value);
+            assert!(r * r <= value);
+            assert!((r + 1) * (r + 1) > value);
+        }
+    }
+
+    #[test]
+    fn sqrt_u128_max_does_not_panic() {
+        let r = integer_sqrt(u128::MAX);
+        assert_eq!(r, u64::MAX as u128);
     }
 }
