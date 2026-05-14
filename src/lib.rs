@@ -125,7 +125,7 @@ pub fn deposit_amounts(
     if total_lp == 0 {
         let product = (amount_x_in as u128) * (amount_y_in as u128);
         let lp =  integer_sqrt(product);
-        let lp_minter = u64::try_from(lp).map_err(|_| CurveError::Overflow)?;
+        let lp_minted = u64::try_from(lp).map_err(|_| CurveError::Overflow)?;
         return Ok(DepositResult { amount_x_used: amount_x_in, amount_y_used: amount_y_in, lp_minted });
     }
 
@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn deposit_first_asymmetric() {
         let r = deposit_amounts(0, 0, 0, 200, 50).unwrap();
-        assert_eq!(r, DepositResult {amount_x_used: 100, amount_y_used: 50, lp_minted: 100});
+        assert_eq!(r, DepositResult {amount_x_used: 200, amount_y_used: 50, lp_minted: 100});
     }
 
     #[test]
@@ -373,7 +373,7 @@ mod tests {
     #[test]
     fn deposit_x_constrained() {
         let r = deposit_amounts(1000, 2000, 1000, 100, 100).unwrap();
-        assert_eq!(r, DepositResult {amount_x_used: 100, amount_y_used: 200, lp_minted: 100});
+        assert_eq!(r, DepositResult {amount_x_used: 50, amount_y_used: 100, lp_minted: 50});
     }
 
     #[test]
