@@ -118,7 +118,56 @@ pub fn deposit_amounts(
     amount_x_in:  u64,
     amount_y_in:  u64,
 ) -> Result<DepositResult, CurveError> {
-    todo!()
+    if amount_x_in == 0 || amount_y_in == 0 {
+        return Err(CurveError::ZeroInput);
+    }
+
+    if total_lp == 0 {
+        let product = (amount_x_in as u128) * (amount_y_in as u128);
+        let lp =  integer_sqrt(product);
+        let lp_minter = u64::try_from(lp).map_err(|_| CurveError::Overflow)?;
+        return Ok(DepositResult { amount_x_used: amount_x_in, amount_y_used: amount_y_in, lp_minted });
+    }
+
+    if reserve_x == 0 || reserve_y == 0 {
+        return Err(CurveError::EmptyPool);
+    }
+
+    let reserve_x = reserve_x as u128;
+    let reserve_y = reserve_y as u128;
+    let total_lp = total_lp as u128;
+    let amount_x_in = amount_x_in as u128;
+    let amount_y_in = amount_y_in as u128;
+
+    let amount_y_optimal = amount_x_in
+        .checked_mul(reserve_y)
+        .ok_or(CurveError::Overflow)?
+        / reserve_x;
+
+    let (amount_x_used, amount_y_used) = if amount_y_optimal <= amount_y_in {
+        (amount_x_in, amount_y_optimal)
+    } else {
+        let amount_x_optimal = amount_y_in
+            .checked_mul(reserve_x)
+            .ok_or(CurveError::Overflow)? / reserve_y;
+            (amount_x_optimal, amount_y_in)
+    };
+
+    let lp_from_x = amount_x_used
+        .checked_mul(total_lp)
+        .ok_or(CurveError::Overflow)? / reserve_x;
+
+    let lp_from_y = amount_y_used
+        .checked_mul(total_lp)
+        .ok_or(CurveError::Overflow)? / reserve_y;
+
+    let lp_minted = lp_from_x.min(lp_from_y);
+
+    Ok(DepositResult {
+        amount_x_used: u64::try_from(amount_x_used).map_err(|_| CurveError::Overflow)?, 
+        amount_y_used: u64::try_from(amount_y_used).map_err(|_| CurveError::Overflow)?, 
+        lp_minted: u64::try_from(lp_minted).map_err(|_| CurveError::Overflow)? 
+    })
 }
 
 /// Compute how much of each underlying token to return to the LP for burning
@@ -302,4 +351,41 @@ mod tests {
         let r = integer_sqrt(u128::MAX);
         assert_eq!(r, u64::MAX as u128);
     }
+
+    #[test]
+    fn deposit_first_simple() {
+        let r = deposit_amounts(0, 0, 0, 100, 100).unwrap();
+        assert_eq!(r, DepositResult {amount_x_used: 100, amount_y_used: 100, lp_minted: 100});
+    }
+
+    #[test]
+    fn deposit_first_asymmetric() {
+        let r = deposit_amounts(0, 0, 0, 200, 50).unwrap();
+        assert_eq!(r, DepositResult {amount_x_used: 100, amount_y_used: 50, lp_minted: 100});
+    }
+
+    #[test]
+    fn deposit_proportional() {
+        let r = deposit_amounts(1000, 1000, 1000, 100, 100).unwrap();
+        assert_eq!(r, DepositResult {amount_x_used: 100, amount_y_used: 100, lp_minted: 100});
+    }
+
+    #[test]
+    fn deposit_x_constrained() {
+        let r = deposit_amounts(1000, 2000, 1000, 100, 100).unwrap();
+        assert_eq!(r, DepositResult {amount_x_used: 100, amount_y_used: 200, lp_minted: 100});
+    }
+
+    #[test]
+    fn deposit_zero_input_errors() {
+        assert_eq!(deposit_amounts(1000, 1000, 1000, 0, 100), Err(CurveError::ZeroInput));
+        assert_eq!(deposit_amounts(1000, 1000, 1000, 100, 0), Err(CurveError::ZeroInput));
+    }
+
+    #[test]
+    fn deposit_inconsistent_pool_errors() {
+        assert_eq!(deposit_amounts(0, 100, 1000, 50, 50), Err(CurveError::EmptyPool));
+        assert_eq!(deposit_amounts(100, 0, 1000, 50, 50), Err(CurveError::EmptyPool));
+    }
+    
 }
