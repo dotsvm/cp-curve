@@ -235,6 +235,110 @@ mod tests {
     use core::u128;
 
     use super::*;
+    
+    #[test]
+    fn lifecycle_deposit_withdraw_no_swap_round_trips_exact() {
+          let dep = deposit_amounts(0, 0, 0, 1000, 1000).unwrap();
+          assert_eq!(
+              dep,
+              DepositResult { amount_x_used: 1000, amount_y_used: 1000, lp_minted: 1000 },
+          );
+    
+          let (x_out, y_out) =
+              withdraw_amounts(dep.amount_x_used, dep.amount_y_used, dep.lp_minted, dep.lp_minted)
+                  .unwrap();
+          assert_eq!((x_out, y_out), (1000, 1000));
+      }
+    
+      #[test]
+      fn lifecycle_two_lps_proportional_withdrawal() {
+          let alice = deposit_amounts(0, 0, 0, 1000, 1000).unwrap();
+          let (mut rx, mut ry, mut tlp) =
+              (alice.amount_x_used, alice.amount_y_used, alice.lp_minted);
+    
+          let bob = deposit_amounts(rx, ry, tlp, 500, 500).unwrap();
+          rx  += bob.amount_x_used;
+          ry  += bob.amount_y_used;
+          tlp += bob.lp_minted;
+          assert_eq!((rx, ry, tlp), (1500, 1500, 1500));
+
+          let (ax, ay) = withdraw_amounts(rx, ry, tlp, alice.lp_minted).unwrap();
+          assert_eq!((ax, ay), (1000, 1000));
+          rx  -= ax;
+          ry  -= ay;
+          tlp -= alice.lp_minted;
+
+          let (bx, by) = withdraw_amounts(rx, ry, tlp, bob.lp_minted).unwrap();
+          assert_eq!((bx, by), (500, 500));
+      }
+    
+      #[test]
+      fn lifecycle_swap_grows_lp_value() {
+          let dep = deposit_amounts(0, 0, 0, 1000, 1000).unwrap();
+          let (mut rx, mut ry) = (dep.amount_x_used, dep.amount_y_used);
+          let tlp = dep.lp_minted;
+    
+          let amount_out = swap_output_with_fee(rx, ry, 100, 30).unwrap();
+          rx += 100;
+          ry -= amount_out;
+          
+          let (x_out, y_out) = withdraw_amounts(rx, ry, tlp, tlp).unwrap();
+    
+          let value_out = (x_out as u128) * (y_out as u128);
+          let value_in  = 1000u128 * 1000u128;
+          assert!(value_out > value_in);
+      }
+    
+      #[test]
+      fn lifecycle_late_lp_does_not_steal_earlier_fees() {
+          let alice = deposit_amounts(0, 0, 0, 1000, 1000).unwrap();
+          let (mut rx, mut ry, mut tlp) =
+              (alice.amount_x_used, alice.amount_y_used, alice.lp_minted);
+    
+          let bob_out = swap_output_with_fee(rx, ry, 100, 30).unwrap();
+          rx += 100;
+          ry -= bob_out;
+    
+          let charlie = deposit_amounts(rx, ry, tlp, 500, 500).unwrap();
+          let charlie_in_x = charlie.amount_x_used;
+          let charlie_in_y = charlie.amount_y_used;
+          rx  += charlie_in_x;
+          ry  += charlie_in_y;
+          tlp += charlie.lp_minted;
+    
+          let (ax, ay) = withdraw_amounts(rx, ry, tlp, alice.lp_minted).unwrap();
+          assert!((ax as u128) * (ay as u128) > 1_000_000);
+          rx  -= ax;
+          ry  -= ay;
+          tlp -= alice.lp_minted;
+    
+          let (cx, cy) = withdraw_amounts(rx, ry, tlp, charlie.lp_minted).unwrap();
+          assert!(cx <= charlie_in_x);
+          assert!(charlie_in_x - cx <= 2);
+          assert!(cy <= charlie_in_y);
+          assert!(charlie_in_y - cy <= 2);
+      }
+    
+      #[test]
+      fn lifecycle_extreme_inputs_dont_panic() {
+          let big: u64 = 10_u64.pow(15);
+    
+          let dep = deposit_amounts(0, 0, 0, big, big).unwrap();
+          let (mut rx, mut ry, mut tlp) = (dep.amount_x_used, dep.amount_y_used, dep.lp_minted);
+    
+          let out = swap_output_with_fee(rx, ry, big / 10, 30).unwrap();
+          rx += big / 10;
+          ry -= out;
+    
+          let dep2 = deposit_amounts(rx, ry, tlp, big / 2, big / 2).unwrap();
+          rx  += dep2.amount_x_used;
+          ry  += dep2.amount_y_used;
+          tlp += dep2.lp_minted;
+    
+          let (x, y) = withdraw_amounts(rx, ry, tlp, tlp / 2).unwrap();
+          assert!(x > 0);
+          assert!(y > 0);
+      }
 
     #[test]
     fn swap_basic_no_fee() {
