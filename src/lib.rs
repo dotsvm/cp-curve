@@ -178,7 +178,33 @@ pub fn withdraw_amounts(
     total_lp:  u64,
     lp_burn:   u64,
 ) -> Result<(u64, u64), CurveError> {
-    todo!()
+    if lp_burn == 0 {
+        return Err(CurveError::ZeroInput);
+    }
+
+    if total_lp == 0 || lp_burn > total_lp {
+        return Err(CurveError::InsufficientLpSupply);
+    }
+
+    let reserve_x = reserve_x as u128;
+    let reserve_y = reserve_y as u128;
+    let total_lp = total_lp as u128;
+    let lp_burn = lp_burn as u128;
+
+    let x_out = lp_burn
+        .checked_mul(reserve_x)
+        .ok_or(CurveError::Overflow)?
+        / total_lp;
+
+    let y_out = lp_burn
+        .checked_mul(reserve_y)
+        .ok_or(CurveError::Overflow)?
+        / total_lp;
+
+    let x_out = u64::try_from(x_out).map_err(|_| CurveError::Overflow)?;
+    let y_out = u64::try_from(y_out).map_err(|_| CurveError::Overflow)?;
+
+    Ok((x_out, y_out))
 }
 
 /// Integer square root, Newton's method on u128.
@@ -393,5 +419,39 @@ mod tests {
         assert_eq!(deposit_amounts(0, 100, 1000, 50, 50), Err(CurveError::EmptyPool));
         assert_eq!(deposit_amounts(100, 0, 1000, 50, 50), Err(CurveError::EmptyPool));
     }
-    
+
+    #[test]
+    fn withdraw_proportional() {
+        assert_eq!(withdraw_amounts(1000, 1000, 1000, 500), Ok((500, 500)));
+    }
+
+    #[test]
+    fn withdraw_zero_lp_errors() {
+        assert_eq!(withdraw_amounts(1000, 1000, 1000, 0), Err(CurveError::ZeroInput));
+    }
+
+    #[test]
+    fn withdraw_full() {
+        assert_eq!(withdraw_amounts(1000, 1000, 1000, 1000), Ok((1000, 1000)));
+    }
+
+    #[test]
+    fn withdraw_asymmetric_reserves() {
+        assert_eq!(withdraw_amounts(1000, 2000, 1000, 250), Ok((250, 500)));
+    }
+
+    #[test]
+    fn withdraw_to_much_errors() {
+        assert_eq!(withdraw_amounts(1000, 1000, 1000, 1001), Err(CurveError::InsufficientLpSupply));
+    }
+
+    #[test]
+    fn withdraw_empty_supply() {
+        assert_eq!(withdraw_amounts(0, 0, 0, 50), Err(CurveError::InsufficientLpSupply));
+    }
+
+    #[test]
+    fn withdraw_rounds_down() {
+        assert_eq!(withdraw_amounts(100, 100, 3, 1), Ok((33, 33)));
+    }
 }
