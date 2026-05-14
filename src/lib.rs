@@ -76,7 +76,7 @@ pub fn swap_output_with_fee(
         return Err(CurveError::EmptyPool);
     }
 
-    if fee_bps < 10_000 {
+    if fee_bps >= 10_000 {
         return Err(CurveError::InvalidFee);
     }
 
