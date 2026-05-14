@@ -105,7 +105,6 @@ pub fn swap_output_with_fee(
 
     u64::try_from(amount_out).map_err(|_| CurveError::Overflow)
     
-    
 }
 
 /// Compute how much of each input token to actually pull, and how many LP
@@ -200,5 +199,42 @@ mod tests {
         let amount_out = swap_output(1000, 1000, 1_000_000).unwrap();
         assert_eq!(amount_out, 999);
         assert!(amount_out < 1000);
+    }
+
+    #[test]
+    fn swap_with_fee_matches_no_fee_when_zero() {
+        let no_fee = swap_output(1000, 1000, 250).unwrap();
+        let zero_fee = swap_output_with_fee(1000, 1000, 250, 0).unwrap();
+
+        assert_eq!(no_fee, zero_fee);
+    }
+
+    #[test]
+    fn swap_with_fee_30_bps_basic() {
+        assert_eq!(swap_output_with_fee(1000, 1000, 100, 30), Ok(90));
+    }
+
+    #[test]
+    fn swap_with_fee_invalid_fee_errors() {
+        assert_eq!(swap_output_with_fee(1000, 1000, 100, 10_000), Err(CurveError::InvalidFee));
+        assert_eq!(swap_output_with_fee(1000, 1000, 100, 10_001), Err(CurveError::InvalidFee));
+    }
+
+    #[test]
+    fn swap_with_fee_preserves_invariant() {
+        let reserve_x: u64 = 1_000_000;
+        let reserve_y: u64 = 1_000_000;
+        let amount_in: u64 = 250_000;
+        let fee_bps: u16 = 30;
+
+        let amount_out = swap_output_with_fee(reserve_x, reserve_y, amount_in, fee_bps).unwrap();
+
+        let new_x = reserve_x + amount_in;
+        let new_y = reserve_y - amount_out;
+
+        let old_k = (reserve_x as u128) * (reserve_y as u128);
+        let new_k = (new_x as u128) * (new_y as u128);
+
+        assert!(new_k > old_k);
     }
 }
