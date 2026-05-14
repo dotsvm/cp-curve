@@ -277,6 +277,13 @@ mod tests {
     }
 
     #[test]
+    fn sqrt_non_perfect_floors() {
+          assert_eq!(integer_sqrt(15), 3);
+          assert_eq!(integer_sqrt(99), 9);
+          assert_eq!(integer_sqrt(1_000_001), 1000);
+    }
+
+    #[test]
     fn sqrt_big() {
         assert_eq!(integer_sqrt(1_000_000_000_000_000_000), 1_000_000_000);
     }
