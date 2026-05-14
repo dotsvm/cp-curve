@@ -136,7 +136,22 @@ pub fn withdraw_amounts(
 ///
 /// Returns the largest `n` such that `n * n <= value`.
 pub fn integer_sqrt(value: u128) -> u128 {
-    todo!()
+    if value == 0 {
+        return 0;
+    }
+
+    if value < 4 {
+        return 1;
+    }
+
+    let mut z = value;
+    let mut x = value / 2 + 1;
+
+    while x < z {
+        z = x;
+        x = (value / x + x) / 2;
+    }
+    z
 }
 
 
