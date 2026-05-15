@@ -2,5 +2,10 @@
 name = "cp-curve"
 version = "0.1.0"
 edition = "2024"
+description = "Constant-product (x*y=k) AMM curve math primitives for Solana programs"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dotsvm/cp-curve"
+keywords = ["solana", "amm", "defi", "curve"]
+categories = ["mathematics", "cryptography::cryptocurrencies"]
 
 [dependencies]
